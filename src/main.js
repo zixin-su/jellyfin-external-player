@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
   preferJellyfinStream: true,
   preferStrmTarget: true,
   preferLocalFiles: false,
-  invertWheelScroll: true,
+  invertWheelScroll: false,
   strmPathMappings: []
 };
 
@@ -67,7 +67,7 @@ function normalizeSettings(settings) {
   next.preferJellyfinStream = next.preferJellyfinStream !== false;
   next.preferStrmTarget = Boolean(next.preferStrmTarget);
   next.preferLocalFiles = Boolean(next.preferLocalFiles);
-  next.invertWheelScroll = next.invertWheelScroll !== false;
+  next.invertWheelScroll = Boolean(next.invertWheelScroll);
   next.strmPathMappings = normalizeMappings(next.strmPathMappings);
   return next;
 }
@@ -126,7 +126,7 @@ async function createMainWindow() {
     height: 820,
     minWidth: 980,
     minHeight: 640,
-    title: "Jellyfin External Player",
+    title: "Jellyfin 外部播放器",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -141,12 +141,7 @@ async function createMainWindow() {
   });
   installZoomShortcuts(mainWindow);
 
-  if (settings.serverUrl) {
-    await mainWindow.loadURL(settings.serverUrl);
-  } else {
-    await mainWindow.loadFile(path.join(__dirname, "home.html"));
-    openSettingsWindow();
-  }
+  await loadMainContent(settings.serverUrl);
 }
 
 function installZoomShortcuts(window) {
@@ -179,11 +174,11 @@ function adjustZoomFactor(window, delta) {
 function createMenu() {
   const template = [
     {
-      label: "File",
+      label: "文件",
       submenu: [
-        { label: "Settings", accelerator: "CmdOrCtrl+,", click: () => openSettingsWindow() },
+        { label: "设置", accelerator: "CmdOrCtrl+,", click: () => openSettingsWindow() },
         {
-          label: "Open Jellyfin Server",
+          label: "打开 Jellyfin 服务",
           accelerator: "CmdOrCtrl+L",
           click: async () => {
             const settings = await loadSettings();
@@ -192,20 +187,20 @@ function createMenu() {
           }
         },
         { type: "separator" },
-        { role: "quit" }
+        { label: "退出", role: "quit" }
       ]
     },
     {
-      label: "View",
+      label: "视图",
       submenu: [
-        { role: "reload" },
-        { role: "forceReload" },
-        { role: "toggleDevTools" },
+        { label: "重新加载", role: "reload" },
+        { label: "强制重新加载", role: "forceReload" },
+        { label: "开发者工具", role: "toggleDevTools" },
         { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
-        { role: "togglefullscreen" }
+        { label: "重置缩放", role: "resetZoom" },
+        { label: "放大", role: "zoomIn" },
+        { label: "缩小", role: "zoomOut" },
+        { label: "全屏", role: "togglefullscreen" }
       ]
     }
   ];
@@ -222,7 +217,7 @@ function openSettingsWindow() {
     height: 720,
     minWidth: 680,
     minHeight: 560,
-    title: "Settings",
+    title: "设置",
     parent: mainWindow || undefined,
     modal: false,
     webPreferences: {
@@ -242,19 +237,21 @@ ipcMain.handle("settings:get", async () => loadSettings());
 
 ipcMain.handle("settings:save", async (_event, settings) => {
   const saved = await saveSettings(settings);
-  if (saved.serverUrl && mainWindow) {
-    await mainWindow.loadURL(saved.serverUrl);
-  }
+  setImmediate(() => {
+    applySavedSettings(saved).catch((error) => {
+      appendLog("apply-settings-failed", { error: error.message }).catch(() => {});
+    });
+  });
   return saved;
 });
 
 ipcMain.handle("dialog:choose-player", async () => {
   const result = await dialog.showOpenDialog(settingsWindow || mainWindow, {
-    title: "Choose external player",
+    title: "选择外部播放器",
     properties: ["openFile"],
     filters: [
-      { name: "Executable", extensions: ["exe", "bat", "cmd"] },
-      { name: "All Files", extensions: ["*"] }
+      { name: "可执行文件", extensions: ["exe", "bat", "cmd"] },
+      { name: "所有文件", extensions: ["*"] }
     ]
   });
   return result.canceled ? "" : result.filePaths[0];
@@ -272,19 +269,61 @@ ipcMain.handle("app:open-data-folder", async () => {
 ipcMain.handle("navigation:load-server", async (_event, serverUrl) => {
   const settings = await loadSettings();
   const saved = await saveSettings({ ...settings, serverUrl });
-  if (mainWindow) await mainWindow.loadURL(saved.serverUrl);
+  const loaded = await loadMainContent(saved.serverUrl);
+  if (!loaded) {
+    sendMainToast("Jellyfin 服务地址无法打开，请检查设置。", true);
+  }
   return saved;
 });
+
+async function applySavedSettings(saved) {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+
+  const loaded = await loadMainContent(saved.serverUrl);
+  if (!saved.serverUrl) {
+    sendMainToast("设置已保存，请继续配置 Jellyfin 服务地址。", true);
+  } else if (loaded) {
+    sendMainToast("设置已保存。");
+  } else {
+    sendMainToast("设置已保存，但 Jellyfin 服务地址无法打开，请检查设置。", true);
+  }
+}
+
+async function loadMainContent(serverUrl) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  const normalized = normalizeServerUrl(serverUrl);
+  if (!normalized) {
+    await mainWindow.loadFile(path.join(__dirname, "home.html"));
+    return false;
+  }
+
+  try {
+    await mainWindow.loadURL(normalized);
+    return true;
+  } catch (error) {
+    await appendLog("server-load-failed", { serverUrl: normalized, error: error.message });
+    await mainWindow.loadFile(path.join(__dirname, "home.html"));
+    return false;
+  }
+}
+
+function sendMainToast(message, isError = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("app:toast", { message, isError });
+}
 
 ipcMain.handle("playback:external", async (event, payload) => {
   const settings = await loadSettings();
   if (!settings.externalPlayerPath) {
     openSettingsWindow();
-    return { ok: false, message: "External player path is not configured." };
+    return { ok: false, message: "未配置外部播放器路径。" };
   }
   if (!fs.existsSync(settings.externalPlayerPath)) {
     openSettingsWindow();
-    return { ok: false, message: "External player executable does not exist." };
+    return { ok: false, message: "外部播放器文件不存在。" };
   }
 
   const pageUrl = payload.pageUrl || event.senderFrame?.url || "";
@@ -292,7 +331,7 @@ ipcMain.handle("playback:external", async (event, payload) => {
   const dedupeKey = `${itemId}|${payload.videoSrc || ""}`;
   const now = Date.now();
   if (dedupeKey && lastLaunch.key === dedupeKey && now - lastLaunch.at < 4000) {
-    return { ok: true, skipped: true, message: "Duplicate launch skipped." };
+    return { ok: true, skipped: true, message: "已跳过重复播放请求。" };
   }
   lastLaunch = { key: dedupeKey, at: now };
 
@@ -318,7 +357,7 @@ ipcMain.handle("playback:external", async (event, payload) => {
     });
     return {
       ok: true,
-      message: "External player launched.",
+      message: "已打开外部播放器。",
       kind: resolved.kind,
       target: resolved.target,
       title: resolved.title
@@ -394,7 +433,7 @@ async function resolvePlaybackTarget(payload, settings) {
     return { kind: "web-video-src", target: payload.videoSrc, title, itemId: playableItemId };
   }
 
-  throw new Error("Could not resolve a playable URL or path for this Jellyfin item.");
+  throw new Error("无法为该 Jellyfin 项目解析可播放的地址或路径。");
 }
 
 async function resolvePlayableJellyfinItem(serverUrl, item, token, userId) {
@@ -506,7 +545,7 @@ async function getJellyfinItem(serverUrl, itemId, token, userId) {
       lastError = error;
     }
   }
-  throw lastError || new Error("Could not load Jellyfin item metadata.");
+  throw lastError || new Error("无法加载 Jellyfin 项目元数据。");
 }
 
 async function getJellyfinJson(url, token) {
@@ -517,7 +556,7 @@ async function getJellyfinJson(url, token) {
     }
   });
   if (!response.ok) {
-    throw new Error(`Jellyfin API ${response.status} for ${url}`);
+    throw new Error(`Jellyfin API 请求失败：${response.status} ${url}`);
   }
   return response.json();
 }
@@ -552,7 +591,7 @@ async function getJellyfinPlaybackInfo(serverUrl, itemId, token, userId) {
     body: JSON.stringify({})
   });
   if (!response.ok) {
-    throw new Error(`Jellyfin PlaybackInfo API ${response.status}`);
+    throw new Error(`Jellyfin PlaybackInfo API 请求失败：${response.status}`);
   }
   return response.json();
 }
@@ -581,7 +620,7 @@ async function readStrmTarget(strmPath, mappings) {
     .split(/\r?\n/)
     .map((entry) => entry.trim())
     .find((entry) => entry && !entry.startsWith("#"));
-  if (!line) throw new Error(`STRM file is empty: ${strmPath}`);
+  if (!line) throw new Error(`STRM 文件为空：${strmPath}`);
 
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(line)) {
     return line;

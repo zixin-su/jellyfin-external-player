@@ -114,6 +114,11 @@ textarea:focus {
   justify-content: flex-end;
 }
 
+.single-action {
+  justify-content: center;
+  margin-top: 22px;
+}
+
 button {
   min-height: 38px;
   border: 1px solid #3a4654;

@@ -6,7 +6,13 @@ contextBridge.exposeInMainWorld("jep", {
   choosePlayer: () => ipcRenderer.invoke("dialog:choose-player"),
   openSettings: () => ipcRenderer.invoke("app:open-settings"),
   openDataFolder: () => ipcRenderer.invoke("app:open-data-folder"),
-  loadServer: (serverUrl) => ipcRenderer.invoke("navigation:load-server", serverUrl)
+  loadServer: (serverUrl) => ipcRenderer.invoke("navigation:load-server", serverUrl),
+  onToast: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, payload) => callback(payload || {});
+    ipcRenderer.on("app:toast", listener);
+    return () => ipcRenderer.removeListener("app:toast", listener);
+  }
 });
 
 const PLAY_LABELS = ["\u64ad\u653e", "\u64ad\u653e\u89c6\u9891", "play", "resume", "\u7ee7\u7eed\u64ad\u653e"];
@@ -31,6 +37,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   installWheelDirectionCorrection();
   installJellyfinPlaybackInterceptor();
+  window.jep.onToast?.(({ message, isError }) => {
+    if (message) showToast(message, Boolean(isError));
+  });
 });
 
 function installWheelDirectionCorrection() {
@@ -225,10 +234,10 @@ async function requestExternalPlayback(partial) {
   if (key && lastRequest.key === key && now - lastRequest.at < 4000) return;
   lastRequest = { key, at: now };
 
-  showToast("Opening external player...");
+  showToast("正在打开外部播放器...");
   const result = await ipcRenderer.invoke("playback:external", payload);
-  if (!result?.ok) showToast(result?.message || "External playback failed.", true);
-  else showToast("External player launched.");
+  if (!result?.ok) showToast(result?.message || "外部播放失败。", true);
+  else showToast("已打开外部播放器。");
 }
 
 function extractItemIdFromElement(element) {

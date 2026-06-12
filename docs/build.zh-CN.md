@@ -1,5 +1,7 @@
 # 构建与发布流程
 
+English version: [build.md](build.md)
+
 ## 前置条件
 
 - Windows 10/11。
@@ -44,8 +46,8 @@ npm run release:win
 
 输出位置：
 
-- `dist/JellyfinExternalPlayer-v0.6-win32-x64/`
-- `dist/JellyfinExternalPlayer-v0.6-win32-x64.zip`
+- `dist/JellyfinExternalPlayer-v0.6.1-win32-x64/`
+- `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`
 
 ## 干净发布规则
 
@@ -62,10 +64,10 @@ npm run release:win
 
 ## 手动发布到 GitHub Release
 
-1. 创建 tag，例如 `v0.6.0`。
+1. 创建 tag，例如 `v0.6.1`。
 2. 基于该 tag 创建 GitHub Release。
-3. 上传 `dist/JellyfinExternalPlayer-v0.6-win32-x64.zip`。
-4. 说明用户解压后运行 `JellyfinExternalPlayer-v0.6.exe`。
+3. 上传 `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`。
+4. 说明用户解压后运行 `JellyfinExternalPlayer-v0.6.1.exe`。
 
 ## 升级说明
 

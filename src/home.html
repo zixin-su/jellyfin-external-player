@@ -1,26 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Jellyfin External Player</title>
+    <title>Jellyfin 外部播放器</title>
     <link rel="stylesheet" href="./settings.css" />
   </head>
   <body>
     <main class="shell">
       <section class="panel">
-        <h1>Jellyfin External Player</h1>
-        <p class="muted">Enter a Jellyfin server URL to load the original Jellyfin Web interface. Login, browsing, and library views stay handled by Jellyfin Web.</p>
-        <form id="serverForm" class="form">
-          <label>
-            <span>Jellyfin Server URL</span>
-            <input id="serverUrl" type="url" placeholder="http://192.168.1.10:8096" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Open Jellyfin</button>
-            <button type="button" id="settingsBtn">Settings</button>
-          </div>
-        </form>
+        <h1>Jellyfin 外部播放器</h1>
+        <p class="muted">当前还没有正确配置 Jellyfin 服务地址。请先打开设置，填写 Jellyfin 服务地址和外部播放器路径。</p>
+        <div class="actions single-action">
+          <button type="button" id="settingsBtn" class="primary">打开设置</button>
+        </div>
       </section>
     </main>
     <script src="./home.js"></script>

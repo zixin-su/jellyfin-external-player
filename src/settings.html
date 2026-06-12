@@ -1,74 +1,74 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Settings</title>
+    <title>设置</title>
     <link rel="stylesheet" href="./settings.css" />
   </head>
   <body>
     <main class="settings">
       <header>
-        <h1>Settings</h1>
-        <p class="muted">Configure the Jellyfin server, external player, playback behavior, and optional STRM path mappings.</p>
+        <h1>设置</h1>
+        <p class="muted">配置 Jellyfin 服务、外部播放器、播放行为和可选的 STRM 路径映射。</p>
       </header>
 
       <form id="settingsForm" class="form">
         <label>
-          <span>Jellyfin Server URL</span>
+          <span>Jellyfin 服务地址</span>
           <input id="serverUrl" type="url" placeholder="http://192.168.1.10:8096" />
         </label>
 
         <label>
-          <span>External Player</span>
+          <span>外部播放器</span>
           <div class="row">
             <input id="externalPlayerPath" type="text" placeholder="C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe" />
-            <button id="browsePlayer" type="button">Browse</button>
+            <button id="browsePlayer" type="button">浏览</button>
           </div>
         </label>
 
         <label>
-          <span>Player Arguments</span>
+          <span>播放器参数</span>
           <input id="playerArgs" type="text" placeholder="{url}" />
-          <small>Available placeholders: <code>{url}</code> <code>{path}</code> <code>{title}</code> <code>{itemId}</code>. Example: <code>--fullscreen {url}</code></small>
+          <small>可用占位符：<code>{url}</code> <code>{path}</code> <code>{title}</code> <code>{itemId}</code>。示例：<code>--fullscreen {url}</code></small>
         </label>
 
         <label class="check">
           <input id="interceptPlayback" type="checkbox" />
-          <span>Intercept Jellyfin playback and open external player</span>
+          <span>拦截 Jellyfin 播放并打开外部播放器</span>
         </label>
 
         <label class="check">
           <input id="preferJellyfinStream" type="checkbox" />
-          <span>Send Jellyfin HTTP stream URL to external player when possible</span>
+          <span>尽可能把 Jellyfin HTTP 流地址传给外部播放器</span>
         </label>
 
         <label class="check">
           <input id="preferStrmTarget" type="checkbox" />
-          <span>For STRM items, read the STRM target before launching player</span>
+          <span>STRM 项目优先读取 STRM 目标地址</span>
         </label>
 
         <label class="check">
           <input id="preferLocalFiles" type="checkbox" />
-          <span>Use local file paths when Jellyfin paths are readable on this PC</span>
+          <span>当本机可读取 Jellyfin 路径时使用本地文件路径</span>
         </label>
 
         <label class="check">
           <input id="invertWheelScroll" type="checkbox" />
-          <span>Reverse mouse wheel direction inside Jellyfin pages</span>
+          <span>反转 Jellyfin 页面内的鼠标滚轮方向</span>
         </label>
 
         <label>
-          <span>STRM Path Mappings</span>
+          <span>STRM 路径映射</span>
           <textarea id="strmPathMappings" rows="7" placeholder="/mnt/media => Z:\media&#10;/volume1/video => \\NAS\video"></textarea>
-          <small>One mapping per line. The left side is the path prefix seen by Jellyfin; the right side is the Windows path prefix readable on this PC.</small>
+          <small>每行一个映射。左侧是 Jellyfin 服务端看到的路径前缀，右侧是本机 Windows 可访问的路径前缀。</small>
         </label>
 
         <p id="status" class="status" aria-live="polite"></p>
 
         <div class="actions">
-          <button type="submit" class="primary">Save</button>
-          <button id="openDataFolder" type="button">Open Data Folder</button>
+          <button type="submit" class="primary">保存</button>
+          <button id="openDataFolder" type="button">打开数据目录</button>
         </div>
       </form>
     </main>

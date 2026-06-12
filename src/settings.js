@@ -23,6 +23,11 @@ document.getElementById("openDataFolder").addEventListener("click", () => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = form.querySelector("button[type='submit']");
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "保存中...";
+  }
   const settings = {
     serverUrl: fields.serverUrl.value,
     externalPlayerPath: fields.externalPlayerPath.value,
@@ -34,8 +39,15 @@ form.addEventListener("submit", async (event) => {
     invertWheelScroll: fields.invertWheelScroll.checked,
     strmPathMappings: parseMappings(fields.strmPathMappings.value)
   };
-  await window.jep.saveSettings(settings);
-  setStatus("Saved.");
+  try {
+    await window.jep.saveSettings(settings);
+  } catch (error) {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "保存";
+    }
+    setStatus(error?.message || "保存失败。");
+  }
 });
 
 window.jep.getSettings().then((settings) => {
@@ -46,7 +58,7 @@ window.jep.getSettings().then((settings) => {
   fields.preferJellyfinStream.checked = settings.preferJellyfinStream !== false;
   fields.preferStrmTarget.checked = Boolean(settings.preferStrmTarget);
   fields.preferLocalFiles.checked = Boolean(settings.preferLocalFiles);
-  fields.invertWheelScroll.checked = settings.invertWheelScroll !== false;
+  fields.invertWheelScroll.checked = Boolean(settings.invertWheelScroll);
   fields.strmPathMappings.value = formatMappings(settings.strmPathMappings || []);
 });
 

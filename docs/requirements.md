@@ -38,6 +38,9 @@ Build a Windows-friendly Jellyfin client that keeps Jellyfin Web as the primary 
     - `Ctrl+0` reset zoom.
 13. Mouse wheel direction should match the user's expected browser behavior, with a setting to disable the correction if needed.
 14. Generated runtime data, caches, and release staging files must not be committed to source control.
+15. The app UI should default to Chinese, with English documentation available manually.
+16. When the Jellyfin server is not configured or cannot be opened, the home screen should show a clear hint and only one button that opens settings.
+17. Saving settings should close the settings window and show an auto-dismissing confirmation in the main window.
 
 ## Non-goals
 

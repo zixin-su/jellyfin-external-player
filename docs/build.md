@@ -44,8 +44,8 @@ npm run release:win
 
 Outputs:
 
-- `dist/JellyfinExternalPlayer-v0.6-win32-x64/`
-- `dist/JellyfinExternalPlayer-v0.6-win32-x64.zip`
+- `dist/JellyfinExternalPlayer-v0.6.1-win32-x64/`
+- `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`
 
 ## Clean Release Rules
 
@@ -62,10 +62,10 @@ These paths may contain login state, cookies, local settings, logs, or local mac
 
 ## Manual GitHub Release
 
-1. Create a tag such as `v0.6.0`.
+1. Create a tag such as `v0.6.1`.
 2. Create a GitHub Release from that tag.
-3. Upload `dist/JellyfinExternalPlayer-v0.6-win32-x64.zip`.
-4. Mention that users should unzip the package and run `JellyfinExternalPlayer-v0.6.exe`.
+3. Upload `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`.
+4. Mention that users should unzip the package and run `JellyfinExternalPlayer-v0.6.1.exe`.
 
 ## Upgrade Notes
 
