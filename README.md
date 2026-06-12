@@ -2,7 +2,7 @@
 
 An Electron shell for Jellyfin Web that keeps the normal Jellyfin browsing and login experience, while redirecting playback actions to an external desktop player such as PotPlayer, mpv, or VLC.
 
-Chinese documentation: [README.zh-CN.md](README.zh-CN.md)
+中文文档: [README.zh-CN.md](README.zh-CN.md)
 
 ## Features
 
