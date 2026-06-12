@@ -1,0 +1,16 @@
+node_modules/
+dist/
+release/
+work/
+data/
+cache/
+logs/
+crashDumps/
+migration-backup/
+
+*.log
+*.tmp
+*.zip
+
+.DS_Store
+Thumbs.db

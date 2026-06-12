@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jellyfin External Player</title>
+    <link rel="stylesheet" href="./settings.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <h1>Jellyfin External Player</h1>
+        <p class="muted">Enter a Jellyfin server URL to load the original Jellyfin Web interface. Login, browsing, and library views stay handled by Jellyfin Web.</p>
+        <form id="serverForm" class="form">
+          <label>
+            <span>Jellyfin Server URL</span>
+            <input id="serverUrl" type="url" placeholder="http://192.168.1.10:8096" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Open Jellyfin</button>
+            <button type="button" id="settingsBtn">Settings</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    <script src="./home.js"></script>
+  </body>
+</html>
