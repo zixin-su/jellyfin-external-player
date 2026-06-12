@@ -7,6 +7,7 @@ English version: [build.md](build.md)
 - Windows 10/11。
 - 建议使用 Node.js 20 或更新版本。
 - npm。
+- PowerShell 7 或更新版本，并确保命令行可以直接运行 `pwsh`。打包和 GitHub Release 脚本都使用 PowerShell 7。
 
 如果希望依赖缓存不放在系统盘，可以设置：
 
@@ -62,12 +63,19 @@ npm run release:win
 
 这些路径可能包含登录态、Cookies、本地设置、日志或本机路径。
 
-## 手动发布到 GitHub Release
+## 发布到 GitHub Release
 
-1. 创建 tag，例如 `v0.6.1`。
-2. 基于该 tag 创建 GitHub Release。
-3. 上传 `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`。
-4. 说明用户解压后运行 `JellyfinExternalPlayer-v0.6.1.exe`。
+使用 PowerShell 7 发布，避免中文 Release 说明在 Windows PowerShell 5.1 下变成乱码：
+
+```powershell
+pwsh -NoProfile -File scripts/publish-github-release.ps1 `
+  -Tag v0.6.1 `
+  -AssetPath dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip `
+  -ReleaseNotesPath docs/releases/v0.6.1.md `
+  -ReleaseName "Jellyfin 外部播放器 v0.6.1"
+```
+
+Release 页面默认使用中文。英文文档入口放在 `README.en.md`。
 
 ## 升级说明
 

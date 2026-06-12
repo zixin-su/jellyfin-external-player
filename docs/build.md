@@ -5,6 +5,7 @@
 - Windows 10/11.
 - Node.js 20 or newer is recommended.
 - npm.
+- PowerShell 7 or newer on `PATH` as `pwsh` for packaging and GitHub Release scripts.
 
 Optional cache locations if you want dependency caches outside the system drive:
 
@@ -60,12 +61,19 @@ Do not include these directories or files in a public release artifact:
 
 These paths may contain login state, cookies, local settings, logs, or local machine paths.
 
-## Manual GitHub Release
+## GitHub Release
 
-1. Create a tag such as `v0.6.1`.
-2. Create a GitHub Release from that tag.
-3. Upload `dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip`.
-4. Mention that users should unzip the package and run `JellyfinExternalPlayer-v0.6.1.exe`.
+Use PowerShell 7 to avoid Chinese text encoding issues in Release notes:
+
+```powershell
+pwsh -NoProfile -File scripts/publish-github-release.ps1 `
+  -Tag v0.6.1 `
+  -AssetPath dist/JellyfinExternalPlayer-v0.6.1-win32-x64.zip `
+  -ReleaseNotesPath docs/releases/v0.6.1.md `
+  -ReleaseName "Jellyfin 外部播放器 v0.6.1"
+```
+
+The release page is Chinese by default. English documentation is linked from `README.en.md`.
 
 ## Upgrade Notes
 

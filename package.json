@@ -8,8 +8,8 @@
   "scripts": {
     "start": "electron .",
     "package": "electron-packager . JellyfinExternalPlayer-v0.6.1 --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=\"^/(data|cache|dist|work|release|migration-backup)($|/)\" --ignore=\"^/\\.git($|/)\"",
-    "package:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1",
-    "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Zip",
+    "package:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1",
+    "release:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Zip",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/settings.js && node --check src/home.js"
   },
   "devDependencies": {

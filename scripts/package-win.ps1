@@ -1,8 +1,11 @@
+#requires -Version 7.0
+
 param(
   [switch]$Zip
 )
 
 $ErrorActionPreference = "Stop"
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $DistName = "JellyfinExternalPlayer-v0.6.1-win32-x64"

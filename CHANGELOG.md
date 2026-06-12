@@ -10,6 +10,7 @@ English changelog entries are included under each Chinese release section when n
 - 设置保存后自动关闭设置窗口，并在主窗口显示自动消失的保存提示。
 - 仓库默认 README 改为中文，英文文档移至 `README.en.md`。
 - 更新构建文档和发布说明到 `v0.6.1`。
+- 修复 GitHub Release 页面中文乱码问题；后续发布脚本改用 PowerShell 7，并从 UTF-8 Markdown 文件读取 Release 正文。
 
 English summary:
 
