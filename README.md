@@ -12,8 +12,11 @@ English documentation: [README.en.md](README.en.md)
 - 支持设置外部播放器路径和自定义播放器参数。
 - 设置保存后自动关闭设置窗口，并在主窗口显示自动消失的保存提示。
 - 只拦截真正的播放动作，不影响收藏、已观看、更多菜单、详情页其他按钮等 Jellyfin 原功能。
-- 优先把 Jellyfin HTTP 流地址传给外部播放器，因此外部播放器只需要能访问 Jellyfin 服务，不需要直接访问 NAS 内部文件路径。
-- 支持 STRM 媒体：优先使用 Jellyfin 已解析的媒体源；必要时才读取本机可访问的 `.strm` 文件，并支持路径映射。
+- 播放地址来源三选一：
+  - `Jellyfin 流模式`：默认选项，把 Jellyfin HTTP 流地址传给外部播放器。
+  - `直接路径模式`：把 Jellyfin 媒体源路径传给外部播放器；如果媒体是 `.strm`，则读取 `.strm` 第一行。
+  - `辅助服务模式`：把媒体源路径交给 NAS/Jellyfin 端辅助服务，由辅助服务读取普通视频或 `.strm` 并提供 HTTP Range 流。
+- 支持 STRM 媒体、路径映射和 NAS 辅助服务，适合客户端无法直接访问 NAS 本地路径的场景。
 - 支持电影、单集、剧集和季：
   - 电影和单集直接播放。
   - 剧集封面播放会先找 Jellyfin Next Up，找不到再播放第一集。
@@ -33,6 +36,19 @@ npm start
 - `Jellyfin 服务地址`：例如 `http://192.168.1.10:8096`
 - `外部播放器`：例如 `C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe`
 - `播放器参数`：默认 `{url}`。例如 `--fullscreen {url}`
+- `播放地址来源`：普通用户建议保留默认 `Jellyfin 流模式`；只有需要直接访问媒体文件或使用 NAS 辅助服务时再切换。
+
+## STRM 和辅助服务
+
+如果 Jellyfin 媒体源路径是 NAS/Jellyfin 服务器本地路径，客户端电脑访问不到，可以在 NAS/Jellyfin 旁边运行辅助服务。发布 zip 内附带单文件脚本：
+
+```text
+tools/strm-helper-server.js
+```
+
+辅助服务支持普通视频文件和 `.strm` 文件，会把服务器本地文件转换成外部播放器可访问的 HTTP Range 流。
+
+详细部署和排查说明见 [STRM 辅助服务使用说明](docs/strm-helper.zh-CN.md)。
 
 ## 打包
 
@@ -48,4 +64,5 @@ Windows 应用目录和 zip 压缩包会生成到 `dist/`。
 
 - [需求总结](docs/requirements.zh-CN.md)
 - [构建与发布流程](docs/build.zh-CN.md)
+- [STRM 辅助服务使用说明](docs/strm-helper.zh-CN.md)
 - [更新日志](CHANGELOG.md)

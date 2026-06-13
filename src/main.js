@@ -1,8 +1,14 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const fsp = require("fs/promises");
 const { spawn } = require("child_process");
+const {
+  startStrmHelperServer,
+  readStrmTarget,
+  applyPathMappings,
+  isRemoteStreamTarget
+} = require("./strm-helper-server");
 
 const APP_ROOT = path.resolve(__dirname, "..");
 const RUNTIME_ROOT = app.isPackaged ? path.dirname(process.execPath) : APP_ROOT;
@@ -22,19 +28,29 @@ const DEFAULT_SETTINGS = {
   externalPlayerPath: "",
   playerArgs: "{url}",
   interceptPlayback: true,
+  playbackMode: "jellyfin-stream",
   preferJellyfinStream: true,
   preferStrmTarget: true,
   preferLocalFiles: false,
   invertWheelScroll: false,
+  enableLocalStreamProxy: false,
+  localStreamProxyPort: 0,
+  strmHelperUrl: "",
+  strmHelperToken: "",
   strmPathMappings: []
 };
 
 let mainWindow;
 let settingsWindow;
+let localStreamProxy;
+let sessionFlushTimer;
+let quitInProgress = false;
 let lastLaunch = { key: "", at: 0 };
 const ZOOM_STEP = 0.1;
 const MIN_ZOOM_FACTOR = 0.5;
 const MAX_ZOOM_FACTOR = 3;
+const SESSION_FLUSH_INTERVAL_MS = 30000;
+const HELPER_REQUEST_TIMEOUT_MS = 3500;
 
 async function ensureDataDirs() {
   await fsp.mkdir(DATA_ROOT, { recursive: true });
@@ -64,12 +80,29 @@ function normalizeSettings(settings) {
   next.externalPlayerPath = String(next.externalPlayerPath || "").trim();
   next.playerArgs = String(next.playerArgs || "{url}").trim() || "{url}";
   next.interceptPlayback = Boolean(next.interceptPlayback);
-  next.preferJellyfinStream = next.preferJellyfinStream !== false;
-  next.preferStrmTarget = Boolean(next.preferStrmTarget);
-  next.preferLocalFiles = Boolean(next.preferLocalFiles);
+  next.playbackMode = normalizePlaybackMode(next.playbackMode);
+  next.preferJellyfinStream = next.playbackMode === "jellyfin-stream";
+  next.preferStrmTarget = next.playbackMode !== "jellyfin-stream";
+  next.preferLocalFiles = next.playbackMode === "media-path";
   next.invertWheelScroll = Boolean(next.invertWheelScroll);
+  next.enableLocalStreamProxy = false;
+  next.localStreamProxyPort = normalizePort(next.localStreamProxyPort);
+  next.strmHelperUrl = normalizeServerUrl(next.strmHelperUrl);
+  next.strmHelperToken = String(next.strmHelperToken || "").trim();
   next.strmPathMappings = normalizeMappings(next.strmPathMappings);
   return next;
+}
+
+function normalizePlaybackMode(value) {
+  const mode = String(value || "").trim();
+  if (["jellyfin-stream", "media-path", "helper"].includes(mode)) return mode;
+  return "jellyfin-stream";
+}
+
+function normalizePort(value) {
+  const port = Number(value || 0);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) return 0;
+  return port;
 }
 
 function normalizeMappings(value) {
@@ -119,6 +152,87 @@ async function appendLog(message, extra) {
   await fsp.appendFile(LOG_PATH, `${line}\n`, "utf8");
 }
 
+async function ensureLocalStreamProxy(settings) {
+  if (!settings.enableLocalStreamProxy) {
+    await stopLocalStreamProxy();
+    return null;
+  }
+
+  const requestedPort = normalizePort(settings.localStreamProxyPort);
+  if (localStreamProxy && localStreamProxy.requestedPort === requestedPort) {
+    return localStreamProxy;
+  }
+
+  await stopLocalStreamProxy();
+
+  try {
+    localStreamProxy = await startStrmHelperServer({
+      host: "127.0.0.1",
+      port: requestedPort,
+      allowResolve: false,
+      logger: (message, extra) => {
+        appendLog("local-stream-proxy-log", { helperMessage: message, ...(extra || {}) }).catch(() => {});
+      }
+    });
+    localStreamProxy.requestedPort = requestedPort;
+    await appendLog("local-stream-proxy-started", {
+      baseUrl: localStreamProxy.baseUrl,
+      requestedPort
+    });
+    return localStreamProxy;
+  } catch (error) {
+    localStreamProxy = null;
+    await appendLog("local-stream-proxy-start-failed", {
+      error: error.message,
+      requestedPort
+    });
+    return null;
+  }
+}
+
+async function stopLocalStreamProxy() {
+  const server = localStreamProxy;
+  localStreamProxy = null;
+  if (!server) return;
+  await server.close();
+  await appendLog("local-stream-proxy-stopped").catch(() => {});
+}
+
+function startSessionFlushTimer() {
+  if (sessionFlushTimer) return;
+  sessionFlushTimer = setInterval(() => {
+    flushPersistentSession("interval").catch((error) => {
+      appendLog("session-flush-failed", { reason: "interval", error: error.message }).catch(() => {});
+    });
+  }, SESSION_FLUSH_INTERVAL_MS);
+  if (typeof sessionFlushTimer.unref === "function") sessionFlushTimer.unref();
+}
+
+function stopSessionFlushTimer() {
+  if (!sessionFlushTimer) return;
+  clearInterval(sessionFlushTimer);
+  sessionFlushTimer = null;
+}
+
+async function flushPersistentSession(reason) {
+  const activeSession = mainWindow?.webContents?.session || session.defaultSession;
+  if (!activeSession) return;
+
+  const tasks = [];
+  if (activeSession.cookies && typeof activeSession.cookies.flushStore === "function") {
+    tasks.push(activeSession.cookies.flushStore());
+  }
+  if (typeof activeSession.flushStorageData === "function") {
+    tasks.push(activeSession.flushStorageData());
+  }
+  if (!tasks.length) return;
+
+  await Promise.all(tasks);
+  if (reason !== "interval") {
+    await appendLog("session-flushed", { reason }).catch(() => {});
+  }
+}
+
 async function createMainWindow() {
   const settings = await loadSettings();
   mainWindow = new BrowserWindow({
@@ -138,6 +252,11 @@ async function createMainWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+  mainWindow.webContents.on("did-stop-loading", () => {
+    flushPersistentSession("did-stop-loading").catch((error) => {
+      appendLog("session-flush-failed", { reason: "did-stop-loading", error: error.message }).catch(() => {});
+    });
   });
   installZoomShortcuts(mainWindow);
 
@@ -214,7 +333,7 @@ function openSettingsWindow() {
   }
   settingsWindow = new BrowserWindow({
     width: 760,
-    height: 720,
+    height: 840,
     minWidth: 680,
     minHeight: 560,
     title: "设置",
@@ -277,6 +396,11 @@ ipcMain.handle("navigation:load-server", async (_event, serverUrl) => {
 });
 
 async function applySavedSettings(saved) {
+  await ensureLocalStreamProxy(saved);
+  await flushPersistentSession("settings-save").catch((error) => {
+    appendLog("session-flush-failed", { reason: "settings-save", error: error.message }).catch(() => {});
+  });
+
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.close();
   }
@@ -349,11 +473,12 @@ ipcMain.handle("playback:external", async (event, payload) => {
     child.unref();
     await appendLog("external-player-launched", {
       player: settings.externalPlayerPath,
-      args,
+      args: args.map(redactSecrets),
       targetKind: resolved.kind,
       itemId: resolved.itemId || itemId,
       requestedItemId: itemId,
-      title: resolved.title
+      title: resolved.title,
+      target: redactSecrets(resolved.target)
     });
     return {
       ok: true,
@@ -363,7 +488,7 @@ ipcMain.handle("playback:external", async (event, payload) => {
       title: resolved.title
     };
   } catch (error) {
-    await appendLog("external-player-failed", { error: error.message, payload });
+    await appendLog("external-player-failed", { error: error.message, payload: sanitizeForLog(payload) });
     return { ok: false, message: error.message };
   }
 });
@@ -391,42 +516,35 @@ async function resolvePlaybackTarget(payload, settings) {
   const title = formatPlayableTitle(requestedItem, item, payload.title || "");
   const itemPath = item?.Path || "";
   const mediaPath = mediaSource?.Path || "";
+  const mediaContainer = cleanExtension(mediaSource?.Container || "");
   const mappedItemPath = itemPath ? applyPathMappings(itemPath, settings.strmPathMappings) : "";
   const mappedMediaPath = mediaPath ? applyPathMappings(mediaPath, settings.strmPathMappings) : "";
-  const isStrm = settings.preferStrmTarget && /\.strm$/i.test(itemPath);
+  const isStrmMediaSource = /\.strm$/i.test(itemPath) || /\.strm$/i.test(mediaPath) || mediaContainer.toLowerCase() === "strm";
+  const context = {
+    serverUrl,
+    token,
+    mediaSource,
+    playableItemId,
+    playableKind,
+    title,
+    itemPath,
+    mediaPath,
+    mappedItemPath,
+    mappedMediaPath,
+    isStrmMediaSource,
+    settings
+  };
 
-  if (settings.preferJellyfinStream && playableItemId && serverUrl && token) {
-    const streamUrl = buildJellyfinStreamUrl(serverUrl, playableItemId, token, mediaSource);
-    return { kind: `jellyfin-stream-preferred:${playableKind}`, target: streamUrl, title, itemId: playableItemId };
+  if (settings.playbackMode === "jellyfin-stream") {
+    return resolveJellyfinStreamMode(context, "jellyfin-stream-selected");
   }
 
-  if (isStrm) {
-    if (mappedMediaPath && !/\.strm$/i.test(mappedMediaPath)) {
-      return { kind: `jellyfin-media-source-path:${playableKind}`, target: mappedMediaPath, title, itemId: playableItemId };
-    }
-
-    if (mappedItemPath && fs.existsSync(mappedItemPath)) {
-      const target = await readStrmTarget(mappedItemPath, settings.strmPathMappings);
-      return { kind: `local-strm-target:${playableKind}`, target, title, itemId: playableItemId };
-    }
-
-    if (playableItemId && serverUrl && token) {
-      const streamUrl = buildJellyfinStreamUrl(serverUrl, playableItemId, token, mediaSource);
-      return { kind: `jellyfin-stream-fallback:${playableKind}`, target: streamUrl, title, itemId: playableItemId };
-    }
+  if (settings.playbackMode === "media-path") {
+    return resolveMediaPathMode(context);
   }
 
-  if (settings.preferLocalFiles && mappedItemPath && fs.existsSync(mappedItemPath)) {
-    return { kind: `local-file:${playableKind}`, target: mappedItemPath, title, itemId: playableItemId };
-  }
-
-  if (settings.preferLocalFiles && mappedMediaPath && fs.existsSync(mappedMediaPath)) {
-    return { kind: `media-source-local-file:${playableKind}`, target: mappedMediaPath, title, itemId: playableItemId };
-  }
-
-  if (playableItemId && serverUrl && token) {
-    const streamUrl = buildJellyfinStreamUrl(serverUrl, playableItemId, token, mediaSource);
-    return { kind: `jellyfin-stream:${playableKind}`, target: streamUrl, title, itemId: playableItemId };
+  if (settings.playbackMode === "helper") {
+    return resolveHelperMode(context);
   }
 
   if (payload.videoSrc) {
@@ -434,6 +552,245 @@ async function resolvePlaybackTarget(payload, settings) {
   }
 
   throw new Error("无法为该 Jellyfin 项目解析可播放的地址或路径。");
+}
+
+async function resolveJellyfinStreamMode(context, kind) {
+  const fallback = await buildJellyfinStreamFallback({
+    serverUrl: context.serverUrl,
+    playableItemId: context.playableItemId,
+    token: context.token,
+    mediaSource: context.mediaSource,
+    title: context.title,
+    playableKind: context.playableKind,
+    kind,
+    reason: "selected-playback-mode"
+  });
+  if (fallback) return fallback;
+  throw new Error("无法生成 Jellyfin 流地址，请确认当前已登录 Jellyfin。");
+}
+
+async function resolveMediaPathMode(context) {
+  const direct = await resolveStrmPlaybackTarget(context);
+  if (direct) return direct;
+
+  const mediaCandidates = [
+    { path: context.mappedMediaPath, kind: "media-source-path" },
+    { path: context.mappedItemPath, kind: "item-path" }
+  ].filter((entry) => entry.path && !/\.strm$/i.test(entry.path));
+
+  for (const candidate of mediaCandidates) {
+    const target = await maybeUseDirectLocalTarget(candidate.path);
+    if (target) {
+      return {
+        kind: `${candidate.kind}:${context.playableKind}`,
+        target,
+        title: context.title,
+        itemId: context.playableItemId
+      };
+    }
+  }
+
+  throw new Error("媒体文件路径模式未解析到可播放路径。请检查 Jellyfin 媒体路径、STRM 路径映射和本机访问权限。");
+}
+
+async function resolveHelperMode(context) {
+  if (!context.settings.strmHelperUrl) {
+    throw new Error("已选择走辅助服务，但未配置 NAS 辅助服务地址。");
+  }
+
+  const helperTarget = await resolveStrmViaRemoteHelper(
+    {
+      strmPath: context.mediaPath || context.itemPath,
+      mediaPath: context.mediaPath,
+      itemPath: context.itemPath,
+      sourceCandidates: buildHelperSourceCandidates(context),
+      itemId: context.playableItemId,
+      title: context.title,
+      pathMappings: context.settings.strmPathMappings
+    },
+    context.settings
+  );
+
+  if (helperTarget?.fallbackToJellyfin) {
+    return resolveJellyfinStreamMode(context, "jellyfin-stream-helper-unavailable");
+  }
+
+  if (helperTarget) {
+    return {
+      kind: `${helperTarget.kind}:${context.playableKind}`,
+      target: helperTarget.target,
+      title: context.title,
+      itemId: context.playableItemId
+    };
+  }
+
+  throw new Error("辅助服务未返回可播放地址。");
+}
+
+function buildHelperSourceCandidates(context) {
+  const entries = [
+    { kind: "mediaPath", path: context.mediaPath },
+    { kind: "itemPath", path: context.itemPath }
+  ];
+  const seen = new Set();
+  return entries
+    .map((entry) => ({
+      kind: entry.kind,
+      path: String(entry.path || "").trim()
+    }))
+    .filter((entry) => {
+      const key = entry.path.toLowerCase();
+      if (!entry.path || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function resolveStrmPlaybackTarget(context) {
+  const {
+    mappedItemPath,
+    mappedMediaPath,
+    playableItemId,
+    playableKind,
+    title,
+    settings
+  } = context;
+
+  if (mappedMediaPath && !/\.strm$/i.test(mappedMediaPath)) {
+    const target = await maybeUseDirectLocalTarget(mappedMediaPath);
+    if (target) return { kind: `jellyfin-media-source-path:${playableKind}`, target, title, itemId: playableItemId };
+  }
+
+  const strmPath = [mappedMediaPath, mappedItemPath].find((candidate) => /\.strm$/i.test(candidate || "") && fs.existsSync(candidate));
+  if (strmPath) {
+    const strmTarget = await readStrmTarget(strmPath, settings.strmPathMappings);
+    const target = await maybeUseDirectLocalTarget(strmTarget);
+    if (target) return { kind: `local-strm-target:${playableKind}`, target, title, itemId: playableItemId };
+  }
+
+  return null;
+}
+
+async function maybeUseDirectLocalTarget(target) {
+  const value = String(target || "").trim();
+  if (!value || isRemoteStreamTarget(value)) return value;
+
+  let stat = null;
+  try {
+    stat = await fsp.stat(value);
+  } catch (error) {
+    await appendLog("local-target-unavailable", {
+      target: value,
+      error: error.message
+    });
+    return "";
+  }
+  if (!stat.isFile()) return "";
+  return value;
+}
+
+async function buildJellyfinStreamFallback(options) {
+  const { serverUrl, playableItemId, token, mediaSource, title, playableKind, kind, reason } = options;
+  if (!playableItemId || !serverUrl || !token) return null;
+
+  const streamUrl = buildJellyfinStreamUrl(serverUrl, playableItemId, token, mediaSource);
+  await appendLog("jellyfin-stream-fallback", {
+    itemId: playableItemId,
+    kind,
+    reason,
+    target: redactSecrets(streamUrl)
+  }).catch(() => {});
+  return {
+    kind: `${kind}:${playableKind}`,
+    target: streamUrl,
+    title,
+    itemId: playableItemId
+  };
+}
+
+async function resolveStrmViaRemoteHelper(payload, settings) {
+  if (!settings.strmHelperUrl || !hasHelperSourceCandidate(payload)) return null;
+
+  const url = new URL("./resolve-strm", `${settings.strmHelperUrl.replace(/\/+$/, "")}/`);
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  };
+  if (settings.strmHelperToken) {
+    headers["X-Jep-Token"] = settings.strmHelperToken;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), HELPER_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const error = new Error(`HTTP ${response.status}${text ? `：${text.slice(0, 300)}` : ""}`);
+      error.helperStatus = response.status;
+      throw error;
+    }
+
+    const data = await response.json();
+    if (!data?.ok || !data.target) {
+      throw new Error(data?.message || "辅助服务没有返回播放地址。");
+    }
+    await appendLog("remote-strm-helper-resolved", {
+      helperUrl: settings.strmHelperUrl,
+      itemId: payload.itemId,
+      kind: data.kind,
+      sourceKind: data.sourceKind,
+      target: redactSecrets(data.target)
+    }).catch(() => {});
+    return {
+      kind: data.kind || "strm-helper",
+      target: data.target
+    };
+  } catch (error) {
+    const canFallback = isHelperUnavailableError(error);
+    await appendLog(canFallback ? "remote-strm-helper-unavailable" : "remote-strm-helper-failed", {
+      helperUrl: settings.strmHelperUrl,
+      itemId: payload.itemId,
+      error: error.message,
+      fallbackToJellyfin: canFallback
+    });
+    if (canFallback) {
+      return {
+        fallbackToJellyfin: true,
+        reason: error.message
+      };
+    }
+    throw new Error(`NAS 辅助服务解析 STRM 失败：${error.message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function hasHelperSourceCandidate(payload) {
+  const candidates = Array.isArray(payload.sourceCandidates) ? payload.sourceCandidates : [];
+  return candidates.some((entry) => String(entry?.path || entry || "").trim()) ||
+    Boolean(String(payload.strmPath || payload.mediaPath || payload.itemPath || payload.path || "").trim());
+}
+
+function isHelperUnavailableError(error) {
+  const status = Number(error?.helperStatus || 0);
+  if ([404, 502, 503, 504].includes(status)) return true;
+  if (error?.name === "AbortError") return true;
+
+  const code = String(error?.cause?.code || error?.code || "");
+  if (["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH", "ECONNRESET"].includes(code)) {
+    return true;
+  }
+
+  return /fetch failed|failed to fetch|network|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET/i.test(
+    `${error?.message || ""} ${code}`
+  );
 }
 
 async function resolvePlayableJellyfinItem(serverUrl, item, token, userId) {
@@ -605,6 +962,14 @@ function buildJellyfinStreamUrl(serverUrl, itemId, token, mediaSource) {
   return url.toString();
 }
 
+function isJellyfinStrmStreamUrl(value) {
+  try {
+    return /\.strm$/i.test(new URL(value).pathname);
+  } catch {
+    return /\.strm(?:[?#]|$)/i.test(String(value || ""));
+  }
+}
+
 function cleanExtension(value) {
   return String(value || "mp4").split(",")[0].replace(/^\./, "").replace(/[^a-zA-Z0-9]/g, "") || "mp4";
 }
@@ -614,46 +979,35 @@ function extensionFromPath(value) {
   return ext || "";
 }
 
-async function readStrmTarget(strmPath, mappings) {
-  const raw = await fsp.readFile(strmPath, "utf8");
-  const line = raw
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .find((entry) => entry && !entry.startsWith("#"));
-  if (!line) throw new Error(`STRM 文件为空：${strmPath}`);
-
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(line)) {
-    return line;
-  }
-
-  const mapped = applyPathMappings(line, mappings);
-  if (path.isAbsolute(mapped)) return mapped;
-  return path.resolve(path.dirname(strmPath), mapped);
-}
-
-function applyPathMappings(inputPath, mappings) {
-  let value = String(inputPath || "");
-  for (const mapping of mappings || []) {
-    const serverPrefix = normalizeComparablePath(mapping.serverPrefix);
-    const current = normalizeComparablePath(value);
-    if (current.toLowerCase().startsWith(serverPrefix.toLowerCase())) {
-      const rest = value.slice(mapping.serverPrefix.length).replace(/^[/\\]+/, "");
-      return path.join(mapping.clientPrefix, rest);
-    }
-  }
-  return value;
-}
-
-function normalizeComparablePath(value) {
-  return String(value || "").replace(/\\/g, "/").replace(/\/+$/, "");
-}
-
 function originFromUrl(value) {
   try {
     return new URL(value).origin;
   } catch {
     return "";
   }
+}
+
+function sanitizeForLog(value) {
+  if (typeof value === "string") return redactSecrets(value);
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(sanitizeForLog);
+
+  const result = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (/token|api[_-]?key|authorization|password/i.test(key)) {
+      result[key] = "[redacted]";
+    } else {
+      result[key] = sanitizeForLog(entry);
+    }
+  }
+  return result;
+}
+
+function redactSecrets(value) {
+  const text = String(value || "");
+  return text
+    .replace(/([?&](?:api_key|apiKey|token|access_token|X-Emby-Token)=)[^&#\s]+/gi, "$1[redacted]")
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+/gi, "$1[redacted]");
 }
 
 function buildPlayerArgs(template, target, item) {
@@ -700,6 +1054,8 @@ function splitCommandLine(commandLine) {
 
 app.whenReady().then(async () => {
   await ensureDataDirs();
+  await ensureLocalStreamProxy(await loadSettings());
+  startSessionFlushTimer();
   createMenu();
   await createMainWindow();
 
@@ -710,4 +1066,16 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", (event) => {
+  if (quitInProgress) return;
+
+  event.preventDefault();
+  quitInProgress = true;
+  stopSessionFlushTimer();
+
+  Promise.allSettled([flushPersistentSession("before-quit"), stopLocalStreamProxy()]).finally(() => {
+    app.quit();
+  });
 });

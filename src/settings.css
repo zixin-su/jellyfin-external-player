@@ -61,6 +61,25 @@ label {
   font-weight: 600;
 }
 
+.option-group,
+.conditional {
+  border: 1px solid #29323d;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.option-group {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.option-group legend {
+  padding: 0 6px;
+  color: #d8e0ea;
+  font-weight: 700;
+}
+
 .row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -95,16 +114,70 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.18);
 }
 
-.check {
-  grid-template-columns: auto 1fr;
+.check,
+.radio {
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
   font-weight: 500;
 }
 
-.check input {
+.check input,
+.radio input {
   width: 18px;
   height: 18px;
+}
+
+.help {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #4a5665;
+  border-radius: 50%;
+  color: #d8e0ea;
+  font-size: 13px;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.help::after {
+  content: attr(aria-label);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: min(360px, calc(100vw - 80px));
+  padding: 10px 12px;
+  border: 1px solid #405063;
+  border-radius: 6px;
+  background: #0f141a;
+  color: #f5f7fa;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.help:hover::after,
+.help:focus::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.conditional {
+  display: grid;
+  gap: 16px;
+}
+
+.conditional[hidden] {
+  display: none;
 }
 
 .actions {

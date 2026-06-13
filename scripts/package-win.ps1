@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DistName = "JellyfinExternalPlayer-v0.6.1-win32-x64"
+$DistName = "JellyfinExternalPlayer-v0.6.9-win32-x64"
 $DistDir = Join-Path $ProjectRoot "dist\$DistName"
 $ZipPath = Join-Path $ProjectRoot "dist\$DistName.zip"
 
@@ -23,6 +23,10 @@ foreach ($name in @("data", "cache", "logs", "crashDumps")) {
     Remove-Item -LiteralPath $path -Recurse -Force
   }
 }
+
+$HelperOutDir = Join-Path $DistDir "tools"
+New-Item -ItemType Directory -Force -Path $HelperOutDir | Out-Null
+Copy-Item -LiteralPath (Join-Path $ProjectRoot "tools\strm-helper-server.js") -Destination (Join-Path $HelperOutDir "strm-helper-server.js") -Force
 
 if ($Zip) {
   if (Test-Path -LiteralPath $ZipPath) {

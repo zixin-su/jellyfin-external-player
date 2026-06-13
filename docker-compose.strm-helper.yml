@@ -1,0 +1,17 @@
+services:
+  strm-helper:
+    build:
+      context: .
+      dockerfile: Dockerfile.strm-helper
+    container_name: jellyfin-external-player-strm-helper
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      JEP_HELPER_HOST: "0.0.0.0"
+      JEP_HELPER_PORT: "8097"
+      JEP_HELPER_TOKEN: "change-this-token"
+      JEP_HELPER_PUBLIC_URL: "http://NAS_IP:8097"
+    volumes:
+      - "/volume1/video:/volume1/video:ro"
+      - "/volume1/strm:/volume1/strm:ro"

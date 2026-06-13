@@ -5,11 +5,13 @@ const fields = {
   externalPlayerPath: document.getElementById("externalPlayerPath"),
   playerArgs: document.getElementById("playerArgs"),
   interceptPlayback: document.getElementById("interceptPlayback"),
-  preferJellyfinStream: document.getElementById("preferJellyfinStream"),
-  preferStrmTarget: document.getElementById("preferStrmTarget"),
-  preferLocalFiles: document.getElementById("preferLocalFiles"),
+  playbackMode: Array.from(document.querySelectorAll("input[name='playbackMode']")),
   invertWheelScroll: document.getElementById("invertWheelScroll"),
-  strmPathMappings: document.getElementById("strmPathMappings")
+  strmHelperUrl: document.getElementById("strmHelperUrl"),
+  strmHelperToken: document.getElementById("strmHelperToken"),
+  strmPathMappings: document.getElementById("strmPathMappings"),
+  helperSettings: document.getElementById("helperSettings"),
+  pathMappingSettings: document.getElementById("pathMappingSettings")
 };
 
 document.getElementById("browsePlayer").addEventListener("click", async () => {
@@ -33,10 +35,10 @@ form.addEventListener("submit", async (event) => {
     externalPlayerPath: fields.externalPlayerPath.value,
     playerArgs: fields.playerArgs.value || "{url}",
     interceptPlayback: fields.interceptPlayback.checked,
-    preferJellyfinStream: fields.preferJellyfinStream.checked,
-    preferStrmTarget: fields.preferStrmTarget.checked,
-    preferLocalFiles: fields.preferLocalFiles.checked,
+    playbackMode: selectedPlaybackMode(),
     invertWheelScroll: fields.invertWheelScroll.checked,
+    strmHelperUrl: fields.strmHelperUrl.value,
+    strmHelperToken: fields.strmHelperToken.value,
     strmPathMappings: parseMappings(fields.strmPathMappings.value)
   };
   try {
@@ -55,12 +57,34 @@ window.jep.getSettings().then((settings) => {
   fields.externalPlayerPath.value = settings.externalPlayerPath || "";
   fields.playerArgs.value = settings.playerArgs || "{url}";
   fields.interceptPlayback.checked = Boolean(settings.interceptPlayback);
-  fields.preferJellyfinStream.checked = settings.preferJellyfinStream !== false;
-  fields.preferStrmTarget.checked = Boolean(settings.preferStrmTarget);
-  fields.preferLocalFiles.checked = Boolean(settings.preferLocalFiles);
+  setPlaybackMode(settings.playbackMode || "jellyfin-stream");
   fields.invertWheelScroll.checked = Boolean(settings.invertWheelScroll);
+  fields.strmHelperUrl.value = settings.strmHelperUrl || "";
+  fields.strmHelperToken.value = settings.strmHelperToken || "";
   fields.strmPathMappings.value = formatMappings(settings.strmPathMappings || []);
+  updateModeSections();
 });
+
+fields.playbackMode.forEach((input) => {
+  input.addEventListener("change", updateModeSections);
+});
+
+function selectedPlaybackMode() {
+  return fields.playbackMode.find((input) => input.checked)?.value || "jellyfin-stream";
+}
+
+function setPlaybackMode(mode) {
+  const selected = ["jellyfin-stream", "media-path", "helper"].includes(mode) ? mode : "jellyfin-stream";
+  fields.playbackMode.forEach((input) => {
+    input.checked = input.value === selected;
+  });
+}
+
+function updateModeSections() {
+  const mode = selectedPlaybackMode();
+  fields.helperSettings.hidden = mode !== "helper";
+  fields.pathMappingSettings.hidden = !["media-path", "helper"].includes(mode);
+}
 
 function parseMappings(text) {
   return String(text || "")

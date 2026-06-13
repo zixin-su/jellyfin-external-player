@@ -12,8 +12,11 @@ An Electron shell for Jellyfin Web that keeps the normal Jellyfin browsing and l
 - Lets users configure an external player executable and custom player arguments.
 - Closes the settings window after saving and shows an auto-dismissing toast in the main window.
 - Intercepts real Jellyfin play actions without hijacking favorite, watched, more, or other toolbar buttons.
-- Sends Jellyfin HTTP stream URLs to the external player when possible, so the player only needs network access to Jellyfin and does not need direct access to NAS file paths.
-- Supports STRM media by using Jellyfin resolved media sources first, then optional local STRM reading/path mapping as fallback.
+- Provides three playback source modes:
+  - `Jellyfin stream mode`: the default mode. Sends Jellyfin HTTP stream URLs to the external player.
+  - `Direct path mode`: sends Jellyfin media source paths to the external player. For `.strm` media, the client reads the first usable line in the `.strm` file.
+  - `Helper service mode`: sends media source paths to a NAS/Jellyfin-side helper service, which reads plain video files or `.strm` targets and exposes them as HTTP Range streams.
+- Supports STRM media, path mapping, and an optional NAS helper service for cases where the client PC cannot access server-local media paths directly.
 - Handles movies, episodes, series, and seasons:
   - Movies and episodes play directly.
   - Series playback resolves to Jellyfin Next Up, then the first episode.
@@ -33,6 +36,19 @@ Open `文件 > 设置`, then configure:
 - `Jellyfin 服务地址`: for example `http://192.168.1.10:8096`
 - `外部播放器`: for example `C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe`
 - `播放器参数`: default is `{url}`. Example: `--fullscreen {url}`
+- `播放地址来源`: keep the default `Jellyfin 流模式` unless you need direct file paths or the NAS helper service.
+
+## STRM And Helper Service
+
+If Jellyfin media source paths only exist on the NAS/Jellyfin server and the client PC cannot access them, run the helper service next to Jellyfin. The release zip includes the standalone script:
+
+```text
+tools/strm-helper-server.js
+```
+
+The helper supports both plain video files and `.strm` files, and exposes server-local files as HTTP Range streams for external players.
+
+See [STRM helper service guide](docs/strm-helper.en.md) for setup and troubleshooting.
 
 ## Packaging
 
@@ -48,4 +64,5 @@ More details:
 
 - [Requirements summary](docs/requirements.md)
 - [Build and release guide](docs/build.md)
+- [STRM helper service guide](docs/strm-helper.en.md)
 - [Changelog](CHANGELOG.md)

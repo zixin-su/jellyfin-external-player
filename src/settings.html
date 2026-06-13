@@ -38,31 +38,51 @@
           <span>拦截 Jellyfin 播放并打开外部播放器</span>
         </label>
 
-        <label class="check">
-          <input id="preferJellyfinStream" type="checkbox" />
-          <span>尽可能把 Jellyfin HTTP 流地址传给外部播放器</span>
-        </label>
-
-        <label class="check">
-          <input id="preferStrmTarget" type="checkbox" />
-          <span>STRM 项目优先读取 STRM 目标地址</span>
-        </label>
-
-        <label class="check">
-          <input id="preferLocalFiles" type="checkbox" />
-          <span>当本机可读取 Jellyfin 路径时使用本地文件路径</span>
-        </label>
+        <fieldset class="option-group">
+          <legend>播放地址来源</legend>
+          <label class="radio">
+            <input type="radio" name="playbackMode" value="jellyfin-stream" checked />
+            <span>Jellyfin 流模式</span>
+            <span class="help" tabindex="0" aria-label="由 Jellyfin 生成 HTTP 播放流，兼容性最好，也是默认选项。">?</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="playbackMode" value="media-path" />
+            <span>直接路径模式</span>
+            <span class="help" tabindex="0" aria-label="把 Jellyfin 媒体源路径直接传给外部播放器；如果媒体是 STRM，则读取 STRM 第一行里的路径。要求客户端本机能访问该路径。">?</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="playbackMode" value="helper" />
+            <span>辅助服务模式</span>
+            <span class="help" tabindex="0" aria-label="把 Jellyfin 媒体源路径交给 NAS/Jellyfin 旁边的辅助服务解析，由辅助服务提供支持拖动进度的 HTTP Range 流。">?</span>
+          </label>
+        </fieldset>
 
         <label class="check">
           <input id="invertWheelScroll" type="checkbox" />
           <span>反转 Jellyfin 页面内的鼠标滚轮方向</span>
         </label>
 
-        <label>
-          <span>STRM 路径映射</span>
-          <textarea id="strmPathMappings" rows="7" placeholder="/mnt/media => Z:\media&#10;/volume1/video => \\NAS\video"></textarea>
-          <small>每行一个映射。左侧是 Jellyfin 服务端看到的路径前缀，右侧是本机 Windows 可访问的路径前缀。</small>
-        </label>
+        <section id="helperSettings" class="conditional" hidden>
+          <label>
+            <span>NAS 辅助服务地址</span>
+            <input id="strmHelperUrl" type="url" placeholder="http://192.168.1.10:8097" />
+            <small>辅助服务临时不可用时会降级走 Jellyfin 流；令牌错误或路径权限错误会提示修正配置。</small>
+          </label>
+
+          <label>
+            <span>NAS 辅助服务令牌（可选）</span>
+            <input id="strmHelperToken" type="password" autocomplete="off" placeholder="JEP_HELPER_TOKEN" />
+            <small>如果 NAS 辅助服务配置了访问令牌，这里填写同一个值。</small>
+          </label>
+        </section>
+
+        <section id="pathMappingSettings" class="conditional" hidden>
+          <label>
+            <span>STRM 路径映射</span>
+            <textarea id="strmPathMappings" rows="7" placeholder="/mnt/media => Z:\media&#10;/volume1/video => \\NAS\video"></textarea>
+            <small>每行一个映射。媒体文件路径模式下右侧是本机 Windows 可访问路径；辅助服务模式下右侧是辅助服务所在机器可访问路径。</small>
+          </label>
+        </section>
 
         <p id="status" class="status" aria-live="polite"></p>
 
