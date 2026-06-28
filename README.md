@@ -33,7 +33,8 @@ npm start
 
 打开 `文件 > 设置` 后配置：
 
-- `Jellyfin 服务地址`：例如 `http://192.168.1.10:8096`
+- `Jellyfin 服务地址`：例如 `https://jellyfin.example.com`、`https://example.com/jellyfin` 或 `http://192.168.1.10:8096`
+- 如果使用自签证书、证书域名不匹配或内网反代证书未被系统信任，勾选 `允许当前 Jellyfin HTTPS 地址使用不受信任证书`。
 - `外部播放器`：例如 `C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe`
 - `播放器参数`：默认 `{url}`。例如 `--fullscreen {url}`
 - `播放地址来源`：普通用户建议保留默认 `Jellyfin 流模式`；只有需要直接访问媒体文件或使用 NAS 辅助服务时再切换。

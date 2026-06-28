@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, session } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, session, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const fsp = require("fs/promises");
@@ -25,6 +25,7 @@ app.setPath("crashDumps", path.join(DATA_ROOT, "crashDumps"));
 
 const DEFAULT_SETTINGS = {
   serverUrl: "",
+  allowInsecureTls: false,
   externalPlayerPath: "",
   playerArgs: "{url}",
   interceptPlayback: true,
@@ -77,6 +78,7 @@ async function saveSettings(settings) {
 function normalizeSettings(settings) {
   const next = { ...settings };
   next.serverUrl = normalizeServerUrl(next.serverUrl);
+  next.allowInsecureTls = Boolean(next.allowInsecureTls);
   next.externalPlayerPath = String(next.externalPlayerPath || "").trim();
   next.playerArgs = String(next.playerArgs || "{url}").trim() || "{url}";
   next.interceptPlayback = Boolean(next.interceptPlayback);
@@ -132,13 +134,95 @@ function normalizeServerUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
   try {
-    const url = new URL(raw.includes("://") ? raw : `http://${raw}`);
+    const url = new URL(raw.includes("://") ? raw : `${inferDefaultProtocol(raw)}://${raw}`);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return raw;
+    }
     url.pathname = url.pathname.replace(/\/+$/, "");
     url.search = "";
     url.hash = "";
     return url.toString().replace(/\/$/, "");
   } catch {
     return raw;
+  }
+}
+
+function inferDefaultProtocol(value) {
+  const host = String(value || "").split(/[/?#]/, 1)[0].replace(/^\[|\]$/g, "");
+  if (/:(?:8096|8097)$/i.test(host)) return "http";
+  if (/^(localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|192\.168(?:\.\d{1,3}){2})(?::\d+)?$/i.test(host)) {
+    return "http";
+  }
+  return "https";
+}
+
+function jellyfinUrl(serverUrl, relativePath) {
+  const normalized = normalizeServerUrl(serverUrl);
+  if (!normalized) throw new Error("Jellyfin 服务地址无效。");
+  return new URL(String(relativePath || "").replace(/^\/+/, ""), `${normalized.replace(/\/+$/, "")}/`);
+}
+
+function installCertificateHandling() {
+  app.on("certificate-error", (event, _webContents, url, error, certificate, callback) => {
+    event.preventDefault();
+    loadSettings()
+      .then((settings) => {
+        if (!shouldAllowInsecureCertificateUrl(url, settings)) {
+          callback(false);
+          return;
+        }
+
+        appendLog("insecure-certificate-allowed", {
+          url: redactSecrets(url),
+          error,
+          issuer: certificate?.issuerName || "",
+          subject: certificate?.subjectName || ""
+        }).catch(() => {});
+        callback(true);
+      })
+      .catch(() => callback(false));
+  });
+
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    loadSettings()
+      .then((settings) => {
+        if (request.verificationResult === "OK") {
+          callback(0);
+          return;
+        }
+        if (shouldAllowInsecureCertificateHost(request.hostname, settings)) {
+          appendLog("insecure-certificate-verified", {
+            hostname: request.hostname,
+            verificationResult: request.verificationResult,
+            errorCode: request.errorCode,
+            issuer: request.certificate?.issuerName || "",
+            subject: request.certificate?.subjectName || ""
+          }).catch(() => {});
+          callback(0);
+          return;
+        }
+        callback(-2);
+      })
+      .catch(() => callback(-2));
+  });
+}
+
+function shouldAllowInsecureCertificateUrl(targetUrl, settings) {
+  try {
+    return shouldAllowInsecureCertificateHost(new URL(targetUrl).hostname, settings);
+  } catch {
+    return false;
+  }
+}
+
+function shouldAllowInsecureCertificateHost(hostname, settings) {
+  if (!settings?.allowInsecureTls) return false;
+  try {
+    const configured = new URL(normalizeServerUrl(settings.serverUrl));
+    if (configured.protocol !== "https:") return false;
+    return String(hostname || "").toLowerCase() === configured.hostname.toLowerCase();
+  } catch {
+    return false;
   }
 }
 
@@ -496,7 +580,7 @@ ipcMain.handle("playback:external", async (event, payload) => {
 async function resolvePlaybackTarget(payload, settings) {
   const itemId = String(payload.itemId || "").trim();
   const token = String(payload.token || payload.accessToken || "").trim();
-  const serverUrl = normalizeServerUrl(payload.serverUrl || originFromUrl(payload.pageUrl));
+  const serverUrl = normalizeServerUrl(payload.serverUrl || jellyfinBaseFromPageUrl(payload.pageUrl));
 
   let requestedItem = null;
   let item = null;
@@ -822,7 +906,7 @@ function isPlayableJellyfinItem(item) {
 }
 
 async function getNextUpEpisode(serverUrl, seriesId, token, userId) {
-  const url = new URL(`${serverUrl}/Shows/NextUp`);
+  const url = jellyfinUrl(serverUrl, "Shows/NextUp");
   if (userId) url.searchParams.set("UserId", userId);
   url.searchParams.set("SeriesId", seriesId);
   url.searchParams.set("Limit", "1");
@@ -846,7 +930,7 @@ async function getSeasonEpisode(serverUrl, season, token, userId) {
 }
 
 async function getShowEpisodes(serverUrl, seriesId, token, userId, seasonId = "") {
-  const url = new URL(`${serverUrl}/Shows/${encodeURIComponent(seriesId)}/Episodes`);
+  const url = jellyfinUrl(serverUrl, `Shows/${encodeURIComponent(seriesId)}/Episodes`);
   if (userId) url.searchParams.set("UserId", userId);
   if (seasonId) url.searchParams.set("seasonId", seasonId);
   url.searchParams.set("Fields", "MediaSources,Path,UserData,SeriesInfo");
@@ -888,14 +972,14 @@ async function getJellyfinItem(serverUrl, itemId, token, userId) {
     Accept: "application/json"
   };
   const urls = [
-    userId ? `${serverUrl}/Users/${encodeURIComponent(userId)}/Items/${encodeURIComponent(itemId)}` : "",
-    `${serverUrl}/Items/${encodeURIComponent(itemId)}`
+    userId ? jellyfinUrl(serverUrl, `Users/${encodeURIComponent(userId)}/Items/${encodeURIComponent(itemId)}`).toString() : "",
+    jellyfinUrl(serverUrl, `Items/${encodeURIComponent(itemId)}`).toString()
   ].filter(Boolean);
 
   let lastError = null;
   for (const url of urls) {
     try {
-      const response = await fetch(url, { headers });
+      const response = await jellyfinFetch(url, { headers });
       if (response.ok) return response.json();
       lastError = new Error(`Jellyfin API ${response.status} for ${url}`);
     } catch (error) {
@@ -906,7 +990,7 @@ async function getJellyfinItem(serverUrl, itemId, token, userId) {
 }
 
 async function getJellyfinJson(url, token) {
-  const response = await fetch(url.toString(), {
+  const response = await jellyfinFetch(url.toString(), {
     headers: {
       "X-Emby-Token": token,
       Accept: "application/json"
@@ -936,9 +1020,9 @@ function bestMediaSource(playbackInfo, item) {
 }
 
 async function getJellyfinPlaybackInfo(serverUrl, itemId, token, userId) {
-  const url = new URL(`${serverUrl}/Items/${encodeURIComponent(itemId)}/PlaybackInfo`);
+  const url = jellyfinUrl(serverUrl, `Items/${encodeURIComponent(itemId)}/PlaybackInfo`);
   if (userId) url.searchParams.set("UserId", userId);
-  const response = await fetch(url.toString(), {
+  const response = await jellyfinFetch(url.toString(), {
     method: "POST",
     headers: {
       "X-Emby-Token": token,
@@ -953,9 +1037,13 @@ async function getJellyfinPlaybackInfo(serverUrl, itemId, token, userId) {
   return response.json();
 }
 
+function jellyfinFetch(url, options) {
+  return net.fetch(url.toString(), options);
+}
+
 function buildJellyfinStreamUrl(serverUrl, itemId, token, mediaSource) {
   const container = cleanExtension(mediaSource?.Container || extensionFromPath(mediaSource?.Path) || "mp4");
-  const url = new URL(`${serverUrl}/Videos/${encodeURIComponent(itemId)}/stream.${container}`);
+  const url = jellyfinUrl(serverUrl, `Videos/${encodeURIComponent(itemId)}/stream.${container}`);
   url.searchParams.set("static", "true");
   if (mediaSource?.Id) url.searchParams.set("mediaSourceId", mediaSource.Id);
   url.searchParams.set("api_key", token);
@@ -979,9 +1067,14 @@ function extensionFromPath(value) {
   return ext || "";
 }
 
-function originFromUrl(value) {
+function jellyfinBaseFromPageUrl(value) {
   try {
-    return new URL(value).origin;
+    const url = new URL(value);
+    const match = url.pathname.match(/^(.*?)\/web(?:\/|$)/i);
+    url.pathname = match ? match[1] || "" : "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
   } catch {
     return "";
   }
@@ -1054,6 +1147,7 @@ function splitCommandLine(commandLine) {
 
 app.whenReady().then(async () => {
   await ensureDataDirs();
+  installCertificateHandling();
   await ensureLocalStreamProxy(await loadSettings());
   startSessionFlushTimer();
   createMenu();

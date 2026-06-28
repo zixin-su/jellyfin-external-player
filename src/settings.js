@@ -2,6 +2,7 @@ const form = document.getElementById("settingsForm");
 const statusEl = document.getElementById("status");
 const fields = {
   serverUrl: document.getElementById("serverUrl"),
+  allowInsecureTls: document.getElementById("allowInsecureTls"),
   externalPlayerPath: document.getElementById("externalPlayerPath"),
   playerArgs: document.getElementById("playerArgs"),
   interceptPlayback: document.getElementById("interceptPlayback"),
@@ -32,6 +33,7 @@ form.addEventListener("submit", async (event) => {
   }
   const settings = {
     serverUrl: fields.serverUrl.value,
+    allowInsecureTls: fields.allowInsecureTls.checked,
     externalPlayerPath: fields.externalPlayerPath.value,
     playerArgs: fields.playerArgs.value || "{url}",
     interceptPlayback: fields.interceptPlayback.checked,
@@ -54,6 +56,7 @@ form.addEventListener("submit", async (event) => {
 
 window.jep.getSettings().then((settings) => {
   fields.serverUrl.value = settings.serverUrl || "";
+  fields.allowInsecureTls.checked = Boolean(settings.allowInsecureTls);
   fields.externalPlayerPath.value = settings.externalPlayerPath || "";
   fields.playerArgs.value = settings.playerArgs || "{url}";
   fields.interceptPlayback.checked = Boolean(settings.interceptPlayback);

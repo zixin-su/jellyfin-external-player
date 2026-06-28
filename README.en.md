@@ -33,7 +33,8 @@ npm start
 
 Open `文件 > 设置`, then configure:
 
-- `Jellyfin 服务地址`: for example `http://192.168.1.10:8096`
+- `Jellyfin 服务地址`: for example `https://jellyfin.example.com`, `https://example.com/jellyfin`, or `http://192.168.1.10:8096`
+- If you use a self-signed certificate, a certificate with a host name mismatch, or an internal reverse-proxy certificate that is not trusted by Windows, enable `允许当前 Jellyfin HTTPS 地址使用不受信任证书`.
 - `外部播放器`: for example `C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe`
 - `播放器参数`: default is `{url}`. Example: `--fullscreen {url}`
 - `播放地址来源`: keep the default `Jellyfin 流模式` unless you need direct file paths or the NAS helper service.

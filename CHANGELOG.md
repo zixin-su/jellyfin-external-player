@@ -2,6 +2,19 @@
 
 English changelog entries are included under each Chinese release section when needed.
 
+## v0.6.11
+
+- 新增 `允许当前 Jellyfin HTTPS 地址使用不受信任证书` 设置项，用于自签证书、证书域名不匹配或内网反代证书未被系统信任的场景。
+- 证书放行只对设置中的 Jellyfin HTTPS 主机生效，不会全局关闭 HTTPS 证书校验。
+- Jellyfin 元数据、PlaybackInfo、剧集/季解析等主进程 API 请求改用 Electron 网络栈，确保与页面加载使用同一套证书策略。
+
+## v0.6.10
+
+- 支持在 Jellyfin 服务地址中配置 `https://域名`，无协议纯域名会默认按 HTTPS 处理。
+- 继续兼容 `http://IP:端口`、`IP:端口` 和 Jellyfin 常见端口 `8096`。
+- 支持反向代理子路径部署，例如 `https://example.com/jellyfin`；播放解析和 Jellyfin API 请求会保留该基础路径。
+- 设置页地址输入改为文本输入，避免浏览器 URL 校验阻止无协议域名。
+
 ## v0.6.9
 
 - 播放地址来源改为三选一：`Jellyfin 流模式`、`直接路径模式`、`辅助服务模式`，默认使用 `Jellyfin 流模式`。

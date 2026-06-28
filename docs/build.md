@@ -45,8 +45,8 @@ npm run release:win
 
 Outputs:
 
-- `dist/JellyfinExternalPlayer-v0.6.9-win32-x64/`
-- `dist/JellyfinExternalPlayer-v0.6.9-win32-x64.zip`
+- `dist/JellyfinExternalPlayer-v0.6.11-win32-x64/`
+- `dist/JellyfinExternalPlayer-v0.6.11-win32-x64.zip`
 
 The release folder and zip include the standalone NAS helper script:
 
@@ -71,10 +71,10 @@ Use PowerShell 7 to avoid Chinese text encoding issues in Release notes:
 
 ```powershell
 pwsh -NoProfile -File scripts/publish-github-release.ps1 `
-  -Tag v0.6.9 `
-  -AssetPath dist/JellyfinExternalPlayer-v0.6.9-win32-x64.zip `
-  -ReleaseNotesPath docs/releases/v0.6.9.md `
-  -ReleaseName "Jellyfin 外部播放器 v0.6.9"
+  -Tag v0.6.11 `
+  -AssetPath dist/JellyfinExternalPlayer-v0.6.11-win32-x64.zip `
+  -ReleaseNotesPath docs/releases/v0.6.11.md `
+  -ReleaseName "Jellyfin 外部播放器 v0.6.11"
 ```
 
 The release page is Chinese by default. English documentation is linked from `README.en.md`.

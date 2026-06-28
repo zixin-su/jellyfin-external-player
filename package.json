@@ -1,13 +1,13 @@
 {
   "name": "jellyfin-external-player-client",
-  "version": "0.6.9",
+  "version": "0.6.11",
   "description": "Electron shell for Jellyfin Web with external player support and STRM target resolution.",
   "productName": "Jellyfin External Player",
   "main": "src/main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . JellyfinExternalPlayer-v0.6.9 --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=\"^/(data|cache|dist|work|release|migration-backup)($|/)\" --ignore=\"^/\\.git($|/)\"",
+    "package": "electron-packager . JellyfinExternalPlayer-v0.6.11 --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=\"^/(data|cache|dist|work|release|migration-backup)($|/)\" --ignore=\"^/\\.git($|/)\"",
     "package:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1",
     "release:win": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package-win.ps1 -Zip",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/settings.js && node --check src/home.js && node --check src/strm-helper-server.js && node --check tools/strm-helper-server.js"

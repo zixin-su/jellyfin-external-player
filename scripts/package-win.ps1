@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DistName = "JellyfinExternalPlayer-v0.6.9-win32-x64"
+$DistName = "JellyfinExternalPlayer-v0.6.11-win32-x64"
 $DistDir = Join-Path $ProjectRoot "dist\$DistName"
 $ZipPath = Join-Path $ProjectRoot "dist\$DistName.zip"
 

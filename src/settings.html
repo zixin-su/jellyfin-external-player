@@ -16,7 +16,14 @@
       <form id="settingsForm" class="form">
         <label>
           <span>Jellyfin 服务地址</span>
-          <input id="serverUrl" type="url" placeholder="http://192.168.1.10:8096" />
+          <input id="serverUrl" type="text" spellcheck="false" placeholder="https://jellyfin.example.com 或 http://192.168.1.10:8096" />
+          <small>支持 <code>https://域名</code>、<code>域名</code>、<code>IP:端口</code>，也支持反向代理子路径，例如 <code>https://example.com/jellyfin</code>。</small>
+        </label>
+
+        <label class="check">
+          <input id="allowInsecureTls" type="checkbox" />
+          <span>允许当前 Jellyfin HTTPS 地址使用不受信任证书</span>
+          <small>仅在自签证书、证书域名不匹配或内网反代证书未被系统信任时使用；只对上方 Jellyfin 服务地址生效。</small>
         </label>
 
         <label>
@@ -65,7 +72,7 @@
         <section id="helperSettings" class="conditional" hidden>
           <label>
             <span>NAS 辅助服务地址</span>
-            <input id="strmHelperUrl" type="url" placeholder="http://192.168.1.10:8097" />
+            <input id="strmHelperUrl" type="text" spellcheck="false" placeholder="http://192.168.1.10:8097" />
             <small>辅助服务临时不可用时会降级走 Jellyfin 流；令牌错误或路径权限错误会提示修正配置。</small>
           </label>
 

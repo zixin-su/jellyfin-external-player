@@ -219,11 +219,12 @@ function handleVideoPlayback(video) {
 
 async function requestExternalPlayback(partial) {
   const auth = extractJellyfinAuth();
+  const serverUrl = pickPlaybackServerUrl(auth.serverUrl);
   const payload = {
     ...partial,
     pageUrl: location.href,
     title: document.title || "",
-    serverUrl: auth.serverUrl || location.origin,
+    serverUrl,
     token: auth.token || "",
     userId: auth.userId || "",
     serverId: auth.serverId || ""
@@ -344,10 +345,66 @@ function extractJellyfinAuth() {
     {};
 
   result.token = selected.token || "";
-  result.serverUrl = selected.serverUrl || location.origin;
+  result.serverUrl = selected.serverUrl || "";
   result.userId = selected.userId || "";
   result.serverId = selected.serverId || serverId || "";
   return result;
+}
+
+function pickPlaybackServerUrl(authServerUrl) {
+  const currentBase = currentJellyfinBaseUrl();
+  const configuredBase = normalizeAbsoluteHttpUrl(runtimeSettings?.serverUrl || "");
+  const authBase = normalizeAbsoluteHttpUrl(authServerUrl || "");
+
+  if (configuredBase && sameOrigin(configuredBase, currentBase)) return configuredBase;
+  if (authBase && sameOrigin(authBase, currentBase)) return authBase;
+  if (configuredBase) return configuredBase;
+  return currentBase || authBase || location.origin;
+}
+
+function currentJellyfinBaseUrl() {
+  try {
+    const url = new URL(location.href);
+    const match = url.pathname.match(/^(.*?)\/web(?:\/|$)/i);
+    url.pathname = match ? match[1] || "" : "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return location.origin;
+  }
+}
+
+function normalizeAbsoluteHttpUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.includes("://") ? raw : `${inferDefaultProtocol(raw)}://${raw}`);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function inferDefaultProtocol(value) {
+  const host = String(value || "").split(/[/?#]/, 1)[0].replace(/^\[|\]$/g, "");
+  if (/:(?:8096|8097)$/i.test(host)) return "http";
+  if (/^(localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|192\.168(?:\.\d{1,3}){2})(?::\d+)?$/i.test(host)) {
+    return "http";
+  }
+  return "https";
+}
+
+function sameOrigin(left, right) {
+  try {
+    return new URL(left).origin.toLowerCase() === new URL(right).origin.toLowerCase();
+  } catch {
+    return false;
+  }
 }
 
 function collectAuthCandidates(value, out) {
@@ -379,7 +436,7 @@ function collectAuthCandidates(value, out) {
 
 function safeHost(url) {
   try {
-    return new URL(url).host.toLowerCase();
+    return new URL(normalizeAbsoluteHttpUrl(url)).host.toLowerCase();
   } catch {
     return "";
   }

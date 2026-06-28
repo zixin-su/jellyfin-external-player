@@ -47,8 +47,8 @@ npm run release:win
 
 输出位置：
 
-- `dist/JellyfinExternalPlayer-v0.6.9-win32-x64/`
-- `dist/JellyfinExternalPlayer-v0.6.9-win32-x64.zip`
+- `dist/JellyfinExternalPlayer-v0.6.11-win32-x64/`
+- `dist/JellyfinExternalPlayer-v0.6.11-win32-x64.zip`
 
 发布目录和 zip 中会附带独立 NAS 辅助服务脚本：
 
@@ -73,10 +73,10 @@ npm run release:win
 
 ```powershell
 pwsh -NoProfile -File scripts/publish-github-release.ps1 `
-  -Tag v0.6.9 `
-  -AssetPath dist/JellyfinExternalPlayer-v0.6.9-win32-x64.zip `
-  -ReleaseNotesPath docs/releases/v0.6.9.md `
-  -ReleaseName "Jellyfin 外部播放器 v0.6.9"
+  -Tag v0.6.11 `
+  -AssetPath dist/JellyfinExternalPlayer-v0.6.11-win32-x64.zip `
+  -ReleaseNotesPath docs/releases/v0.6.11.md `
+  -ReleaseName "Jellyfin 外部播放器 v0.6.11"
 ```
 
 Release 页面默认使用中文。英文文档入口放在 `README.en.md`。
