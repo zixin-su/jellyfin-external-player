@@ -1,3 +1,9 @@
+# 项目已废弃
+
+本项目不再作为后续迭代入口，后续开发已迁移至新项目：[zixin-su/jellyfin-native-player-bridge](https://github.com/zixin-su/jellyfin-native-player-bridge)。
+
+本仓库仅保留历史代码、旧版本发布包和说明文档；新功能、问题修复和后续维护请优先查看新项目。
+
 # Jellyfin 外部播放器
 
 这是一个基于 Electron 的 Jellyfin Web 套壳客户端。登录、浏览、媒体库页面仍然使用原生 Jellyfin Web；当用户点击真正的播放按钮时，客户端会把播放目标交给本机外部播放器，例如 PotPlayer、mpv 或 VLC。

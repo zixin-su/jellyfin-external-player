@@ -1,3 +1,9 @@
+# Project Deprecated
+
+This project is no longer the active development target. Future development has moved to: [zixin-su/jellyfin-native-player-bridge](https://github.com/zixin-su/jellyfin-native-player-bridge).
+
+This repository is kept for historical source code, older release artifacts, and documentation. Please use the new project for new features, bug fixes, and future maintenance.
+
 # Jellyfin External Player
 
 An Electron shell for Jellyfin Web that keeps the normal Jellyfin browsing and login experience, while redirecting playback actions to an external desktop player such as PotPlayer, mpv, or VLC.
